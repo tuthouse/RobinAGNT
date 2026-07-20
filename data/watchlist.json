@@ -1,0 +1,22 @@
+[
+  {
+    "address": "0xa67D7Eb4dc68fa6ce8e34Ef8CaDaF075b9893FBb",
+    "label": "Active trader",
+    "why": "Frequent permit2TransferAndMulticall swaps on RH-chain DEXes. Unvetted — activity-selected, not P&L-proven yet."
+  },
+  {
+    "address": "0xadA5bb90d0de0bD1b6F3938708F49295A8D1F7CB",
+    "label": "Active trader",
+    "why": "permit2TransferAndMulticall swapper. Unvetted starter pick."
+  },
+  {
+    "address": "0xB2d7B7769D8a69607fDeA28941cB181525Ac3232",
+    "label": "Active trader",
+    "why": "multicall swapper. Unvetted starter pick."
+  },
+  {
+    "address": "0xeFad88445E19F1998e79CC16A7e8811561042374",
+    "label": "Active trader",
+    "why": "execute-method swapper. Unvetted starter pick."
+  }
+]
