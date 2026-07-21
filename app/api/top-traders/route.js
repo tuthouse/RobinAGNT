@@ -9,7 +9,7 @@ export const revalidate = 0;
 export async function GET(req) {
   // ~7s of GeckoTerminal fan-out per uncached hit — limit tightest so a flood
   // can't exhaust function concurrency or trip GT's shared rate limit.
-  const rl = rateLimit(req, { limit: 12, windowMs: 60000 });
+  const rl = await rateLimit(req, { name: 'top-traders', limit: 12, windowMs: 60000 });
   if (!rl.ok) return tooMany(rl.retryAfter);
 
   const url = new URL(req.url);

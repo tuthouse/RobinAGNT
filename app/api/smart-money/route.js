@@ -9,7 +9,7 @@ export const revalidate = 0;
 // The tracker: every watched wallet with its 24h + 7d trade volume, ranked.
 export async function GET(req) {
   // Bounded (fixed watchlist) but still fans out to Alchemy per wallet — cap it.
-  const rl = rateLimit(req, { limit: 20, windowMs: 60000 });
+  const rl = await rateLimit(req, { name: 'smart-money', limit: 20, windowMs: 60000 });
   if (!rl.ok) return tooMany(rl.retryAfter);
 
   const wallets = watchlist.filter(

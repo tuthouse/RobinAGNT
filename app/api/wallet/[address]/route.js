@@ -12,7 +12,7 @@ export const revalidate = 0;
 export async function GET(req, { params }) {
   // Heaviest route (4 Alchemy calls/hit) — rate-limit hardest so nobody can loop
   // random addresses to burn the paid Alchemy quota.
-  const rl = rateLimit(req, { limit: 20, windowMs: 60000 });
+  const rl = await rateLimit(req, { name: 'wallet', limit: 20, windowMs: 60000 });
   if (!rl.ok) return tooMany(rl.retryAfter);
 
   const { address } = await params;
