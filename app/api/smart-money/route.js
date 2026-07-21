@@ -1,12 +1,17 @@
 import { getWalletVolume } from '../../../lib/volume';
 import watchlist from '../../../data/watchlist.json';
+import { rateLimit, tooMany } from '../../../lib/ratelimit';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 // GET /api/smart-money
 // The tracker: every watched wallet with its 24h + 7d trade volume, ranked.
-export async function GET() {
+export async function GET(req) {
+  // Bounded (fixed watchlist) but still fans out to Alchemy per wallet — cap it.
+  const rl = rateLimit(req, { limit: 20, windowMs: 60000 });
+  if (!rl.ok) return tooMany(rl.retryAfter);
+
   const wallets = watchlist.filter(
     (w) =>
       /^0x[a-fA-F0-9]{40}$/.test(w.address) &&
