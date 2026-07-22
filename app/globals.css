@@ -76,6 +76,27 @@ a { color: inherit; text-decoration: none; }
 .ttr .n { font-variant-numeric: tabular-nums; font-weight: 600; }
 .ttr .n.up { color: var(--grn); } .ttr .n.dn { color: var(--red); }
 
+/* big trades (24h) tape */
+.tape { display: flex; flex-direction: column; gap: 6px; }
+.tprow { display: grid; grid-template-columns: 56px minmax(0,1fr) 100px 108px 56px; grid-template-areas: "side token usd wallet time"; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 11px; padding: 10px 14px; }
+.tprow:hover { border-color: var(--line2); }
+.pill.tp { grid-area: side; justify-self: start; }
+.pill.buy { background: rgba(63,206,133,.12); color: var(--grn); }
+.pill.sell { background: rgba(255,92,92,.11); color: var(--red); }
+.tptok { grid-area: token; display: flex; align-items: center; gap: 9px; min-width: 0; }
+.tplogo { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; background: var(--line); flex: none; }
+.tplogo.ph { display: grid; place-items: center; font-size: 10px; font-weight: 700; color: var(--dim2); border: 1px solid var(--line2); }
+.tptoktext { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.tpsym { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tppool { font-size: 11px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpusd { grid-area: usd; text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 14px; }
+.tpwal { grid-area: wallet; justify-self: end; background: none; border: 0; padding: 0; color: var(--dim2); font-family: var(--mono); font-size: 12px; font-weight: 600; cursor: pointer; }
+.tpwal:hover { color: var(--acc); }
+.tpwal:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; border-radius: 4px; }
+.tptime { grid-area: time; justify-self: end; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tptime:hover { color: var(--acc); }
+.tpext { color: var(--dim); }
+
 .cols { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 20px; align-items: start; }
 
 .sech { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
@@ -194,4 +215,6 @@ a { color: inherit; text-decoration: none; }
   .bcards { grid-template-columns: 1fr; }
   .tth .mc, .ttr .mc { display: none; }
   .sech { flex-wrap: wrap; gap: 8px; }
+  .tprow { grid-template-columns: 52px minmax(0,1fr) auto; grid-template-areas: "side token usd" "side wallet time"; row-gap: 4px; }
+  .tpwal { justify-self: start; }
 }
