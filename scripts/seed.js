@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { getWalletVolume } = require('../lib/volume');
 const { getHoldings } = require('../lib/holdings');
+const { buildTape } = require('../lib/tradeTape');
 
 const GT = 'https://api.geckoterminal.com/api/v2';
 const NET = 'robinhood';
@@ -18,6 +19,7 @@ const KEEP = parseInt(process.argv[2] || '1000', 10);            // wallets on t
 const CANDIDATES = parseInt(process.env.CANDIDATES || '2500', 10); // candidates to price
 const POOL_PAGES = parseInt(process.env.POOL_PAGES || '5', 10);  // GT: 20 pools/page
 const CONCURRENCY = parseInt(process.env.CONCURRENCY || '12', 10); // parallel computes
+const TAPE_POOLS = parseInt(process.env.TAPE_POOLS || '15', 10);  // pools scanned for the big-trades tape
 
 async function gt(p, a = 0) {
   const res = await fetch(`${GT}${p}`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(12000) });
@@ -56,6 +58,7 @@ async function bsLogo(addr) {
 async function discover() {
   // Pools + tokens (with address, logo, mcap, 24h vol/change) via GT include=base_token.
   const pools = [];
+  const tapePools = []; // non-quote base pools, reused (no extra fetch) to build the big-trades tape
   const tokById = new Map();
   const tokByAddr = new Map();
   for (let page = 1; page <= POOL_PAGES; page++) {
@@ -74,6 +77,7 @@ async function discover() {
       const tok = tokById.get(p.relationships?.base_token?.data?.id);
       const symbol = tok?.symbol || (a.name || '').split(' / ')[0]?.trim();
       if (!symbol || QUOTES.has(symbol.toUpperCase()) || EXCLUDE.has(symbol.toUpperCase())) continue;
+      tapePools.push({ address: a.address, name: a.name, vol24h: Number(a.volume_usd?.h24 || 0), base: { symbol, address: tok?.address || null, logo: tok?.logo || null } });
       const addr = tok?.address || symbol;
       const mcap = Number(a.market_cap_usd || a.fdv_usd || 0);
       const vol24h = Number(a.volume_usd?.h24 || 0);
@@ -93,7 +97,36 @@ async function discover() {
   // pass filters out idle ones. Chain is ~18 days old so holders are recent.
   const holderTokens = [WETH_ADDR, USDG_ADDR, ...tokens.map((t) => t.address).filter((a) => /^0x[a-f0-9]{40}$/.test(a))].slice(0, 24);
   const wallets = await bsHolders(holderTokens, CANDIDATES);
-  return { pools, tokens, wallets };
+  return { pools, tokens, wallets, tapePools };
+}
+
+// Big-trades tape: reuse the pools discovery already found (no extra pool-list
+// request) and pull each top pool's recent trades once. GT free tier rate-limits
+// bursts, so go sequential with a small gap (same pattern as discovery). Raw
+// records are normalized + selected by lib/tradeTape.js (pure, tested offline).
+async function fetchTapeTrades(tapePools) {
+  const top = [...tapePools].sort((a, b) => b.vol24h - a.vol24h).slice(0, TAPE_POOLS);
+  const raw = [];
+  for (let i = 0; i < top.length; i++) {
+    if (i > 0) await sleep(350);
+    const p = top[i];
+    let j;
+    try { j = await gt(`/networks/${NET}/pools/${p.address}/trades`); }
+    catch { continue; } // one bad pool shouldn't sink the tape
+    for (const tr of j.data || []) {
+      const a = tr.attributes || {};
+      raw.push({
+        ts: a.block_timestamp,
+        hash: a.tx_hash,
+        wallet: a.tx_from_address,
+        side: a.kind,             // relative to the pool BASE token (see lib/tradeTape.js)
+        usd: a.volume_in_usd,
+        token: p.base,            // pool base token — the token we display + label
+        pool: p.name,
+      });
+    }
+  }
+  return raw;
 }
 
 // Collect unique EOA holders across a set of token contracts.
@@ -176,7 +209,7 @@ async function enrichHoldings(wallets) {
   console.log('    ', JSON.stringify(chain));
 
   console.log('2/4 discovering wallets + tokens across pools…');
-  const { pools, tokens, wallets } = await discover();
+  const { pools, tokens, wallets, tapePools } = await discover();
   console.log(`     ${pools.length} pools, ${tokens.length} tokens, ${wallets.length} unique trader wallets`);
 
   const targets = wallets.slice(0, CANDIDATES);
@@ -186,10 +219,18 @@ async function enrichHoldings(wallets) {
   priced = priced.slice(0, KEEP);
   console.log(`     kept top ${priced.length} by 7d volume`);
 
-  console.log(`4/5 fetching holdings for the ${priced.length} board wallets…`);
+  console.log(`4/6 fetching holdings for the ${priced.length} board wallets…`);
   await enrichHoldings(priced);
 
-  console.log('5/5 writing snapshot…');
+  console.log(`5/6 building big-trades tape from ${tapePools.length} pools…`);
+  let tape = [];
+  try {
+    const rawTape = await fetchTapeTrades(tapePools);
+    tape = buildTape(rawTape, { limit: 40 });
+    console.log(`     tape: kept ${tape.length} of ${rawTape.length} raw trades`);
+  } catch (e) { console.log('     tape build failed:', e.message); }
+
+  console.log('6/6 writing snapshot…');
   const snapshot = {
     chain: 4663,
     generatedAt: new Date().toISOString(),
@@ -198,6 +239,7 @@ async function enrichHoldings(wallets) {
     pools: pools.slice(0, 12).map((p) => ({ name: p.name, vol24h: Math.round(p.vol24h) })),
     tokens,
     wallets: priced,
+    tape,
   };
   const dest = path.join(__dirname, '..', 'data', 'snapshot.json');
   fs.writeFileSync(dest, JSON.stringify(snapshot, null, 0));
