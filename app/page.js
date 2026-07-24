@@ -98,6 +98,10 @@ export default function Dashboard() {
   const maxWvol = wallets[0]?.vol7d || 1;
 
   function openStored(w) { setSel({ addr: w.address, stored: w }); }
+  function openWallet(address) {
+    const hit = wallets.find((w) => w.address.toLowerCase() === address.toLowerCase());
+    setSel({ addr: address, stored: hit || null }); // stored when on the board, else live lookup
+  }
   function onFind(e) {
     if (e.key === 'Enter' && /^0x[a-fA-F0-9]{40}$/.test(q.trim())) {
       const hit = wallets.find((w) => w.address.toLowerCase() === q.trim().toLowerCase());
@@ -158,6 +162,8 @@ export default function Dashboard() {
           </div>
         )}
       </section>
+
+      <TapeSection tape={snap?.tape} generatedAt={snap?.generatedAt} loading={!snap} onWallet={openWallet} />
 
       <div className="cols">
         {/* WALLETS */}
@@ -235,6 +241,63 @@ function Toggle({ v, set, opts }) {
         <button key={val} className={v === val ? 'on' : ''} onClick={() => set(val)}>{label}</button>
       ))}
     </div>
+  );
+}
+
+// Honest freshness line for the snapshot-based tape (no real-time claim).
+function freshness(generatedAt) {
+  const t = generatedAt ? Date.parse(generatedAt) : NaN;
+  if (!Number.isFinite(t)) return '';
+  const d = new Date(t);
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  const rel = ago(generatedAt);
+  return `snapshot · ${rel === 'now' ? 'updated just now' : 'updated ' + rel + ' ago'} · ${hh}:${mm} UTC`;
+}
+
+// Big Trades (24h): largest recent swaps from the snapshot's precomputed tape.
+// Each row is defensively validated so a malformed record can't break the page.
+function TapeSection({ tape, generatedAt, loading, onWallet }) {
+  const rows = (Array.isArray(tape) ? tape : []).filter(
+    (r) => r && typeof r.hash === 'string' && typeof r.wallet === 'string'
+      && (r.side === 'buy' || r.side === 'sell') && Number.isFinite(r.usd)
+      && r.token && typeof r.token.symbol === 'string' && r.token.symbol
+  );
+  return (
+    <section className="block">
+      <div className="sech">
+        <h2>Big Trades · 24h</h2>
+        {generatedAt ? <span className="legend">{freshness(generatedAt)}</span> : null}
+      </div>
+      {loading ? (
+        <div className="empty">Loading snapshot…</div>
+      ) : rows.length === 0 ? (
+        <div className="empty">No large trades in the last 24h.</div>
+      ) : (
+        <div className="tape">
+          {rows.map((r) => (
+            <div className="tprow" key={r.hash + ':' + r.wallet}>
+              <span className={'pill tp ' + (r.side === 'buy' ? 'buy' : 'sell')}>{r.side === 'buy' ? 'BUY' : 'SELL'}</span>
+              <span className="tptok">
+                {r.token.logo
+                  ? <img className="tplogo" src={r.token.logo} alt="" loading="lazy" />
+                  : <span className="tplogo ph">{r.token.symbol[0]}</span>}
+                <span className="tptoktext">
+                  <span className="tpsym">{r.token.symbol}</span>
+                  {r.pool ? <span className="tppool">{r.pool}</span> : null}
+                </span>
+              </span>
+              <span className="tpusd">{usd(r.usd)}</span>
+              <button className="tpwal" onClick={() => onWallet(r.wallet)} title={r.wallet}>{short(r.wallet)}</button>
+              <a className="tptime" href={`https://robinhoodchain.blockscout.com/tx/${r.hash}`}
+                target="_blank" rel="noopener noreferrer" title="View transaction on Blockscout">
+                {ago(r.ts)}<span className="tpext"> ↗</span>
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
